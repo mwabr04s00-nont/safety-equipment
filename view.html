@@ -113,8 +113,8 @@
   </div>
 
   <script>
-    const API_URL = 'YOUR_GAS_WEB_APP_URL';
-    const LIFF_BASE_URL = 'https://liff.line.me/YOUR_LIFF_ID';
+    const API_URL = 'https://script.google.com/macros/s/AKfycbzTOPyMjnSfq_to3G5CPebbbNuPlnb-Rmh9BOjcfIWxB7K53uAzymmlFz3SWSeyuiSl/exec';
+    const LIFF_BASE_URL = 'https://liff.line.me/2012347080-LmaDCjjI';
 
     const params = new URLSearchParams(window.location.search);
     const ASSET_ID = params.get('asset') || 'FE-002';
@@ -132,7 +132,7 @@
     async function loadAssetDetail() {
       try {
         let data;
-        if (API_URL === 'YOUR_GAS_WEB_APP_URL') {
+        if (API_URL === 'https://script.google.com/macros/s/AKfycbzTOPyMjnSfq_to3G5CPebbbNuPlnb-Rmh9BOjcfIWxB7K53uAzymmlFz3SWSeyuiSl/exec') {
           data = {
             asset: { assetId: ASSET_ID, name: 'ถังดับเพลิงเคมีแห้ง 15 lbs', type: 'ถังดับเพลิง', standard: 'มอก. 332-2537', building: 'อาคาร 1 ชั้น 1', location: 'เสา C4 (โซนคลังสินค้าหลัก)', installDate: '10/08/2022', expiryDate: 'ส่งบรรจุใหม่: ด่วน', status: 'พบข้อบกพร่อง' },
             history: [

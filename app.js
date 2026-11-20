@@ -1,9 +1,9 @@
 // ==========================================
 // CONFIGURATION
 // ==========================================
-const API_URL = 'YOUR_GAS_WEB_APP_URL';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzTOPyMjnSfq_to3G5CPebbbNuPlnb-Rmh9BOjcfIWxB7K53uAzymmlFz3SWSeyuiSl/exec';
 // ลิงก์หน้า view.html บน GitHub Pages สำหรับสร้าง Smart Single QR
-const PUBLIC_VIEW_URL = 'https://YOUR_USERNAME.github.io/YOUR_REPO/view.html';
+const PUBLIC_VIEW_URL = 'https://mwabr04s00-nont.github.io/safety-equipment/view.html';
 
 let APP_DATA = { assets: [], checkpoints: [], inspections: [], workOrders: [], approvals: [], users: [] };
 let currentFontSize = 16;

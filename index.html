@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ระบบตรวจสอบอุปกรณ์ความปลอดภัย | จป. วิชาชีพ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="bg-[#f5f7fb] text-slate-800 min-h-screen flex flex-col">
+
+  <!-- Login Overlay -->
+  <div id="loginOverlay" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 border border-slate-100">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md">
+          <i data-lucide="shield-check" class="w-7 h-7"></i>
+        </div>
+        <div>
+          <h2 class="text-xl font-bold text-slate-900">เข้าสู่ระบบ จป. Admin</h2>
+          <p class="text-xs text-slate-500">Safety Equipment Inspection & Tracking Portal</p>
+        </div>
+      </div>
+      <form id="loginForm" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">รหัสผ่านผู้ดูแลระบบ</label>
+          <input type="password" id="adminPassword" required placeholder="กรอกรหัสผ่าน (ค่าเริ่มต้น: admin1234)"
+            class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+        </div>
+        <p id="loginError" class="text-xs text-red-600 hidden"></p>
+        <button type="submit" id="loginBtn" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition flex items-center justify-center gap-2">
+          <span>เข้าสู่ระบบ</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Demo Banner -->
+  <div id="demoBanner" class="hidden bg-amber-50 border-b border-amber-200 text-amber-800 text-xs px-4 py-2 text-center no-print">
+    โหมดข้อมูลตัวอย่าง (Demo Mode) — นำ URL ของ GAS Web App มาใส่ในตัวแปร <code>API_URL</code> ในไฟล์ <code>app.js</code> เพื่อเชื่อมต่อ Google Sheets จริง
+  </div>
+
+  <!-- Top Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 no-print">
+    <div class="max-w-[1440px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm shrink-0">
+          <i data-lucide="shield-check" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-bold text-slate-900 text-base leading-tight">ระบบตรวจสอบอุปกรณ์ความปลอดภัย</h1>
+            <span class="px-2 py-0.5 text-[11px] font-semibold bg-emerald-100 text-emerald-700 rounded-full">จป. วิชาชีพ</span>
+          </div>
+          <p class="text-[11px] text-slate-500">Safety Equipment Inspection & Tracking Portal</p>
+        </div>
+      </div>
+
+      <div class="hidden md:flex items-center flex-1 max-w-md relative">
+        <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5"></i>
+        <input type="text" id="globalSearch" placeholder="ค้นหาซีเรียล, รหัสอุปกรณ์, จุดตรวจ (QR ID)..."
+          class="w-full pl-10 pr-4 py-2 bg-slate-100 hover:bg-slate-200/70 focus:bg-white border border-transparent focus:border-indigo-400 rounded-xl text-sm outline-none transition">
+      </div>
+
+      <div class="flex items-center gap-3">
+        <div class="hidden sm:flex items-center bg-slate-100 rounded-lg p-0.5 text-xs font-semibold">
+          <button onclick="adjustFontSize(-1)" class="px-2 py-1 hover:bg-white rounded-md text-slate-600" title="ลดขนาดตัวอักษร">A-</button>
+          <button onclick="adjustFontSize(0)" class="px-2 py-1 hover:bg-white rounded-md text-slate-600" title="ขนาดปกติ">A</button>
+          <button onclick="adjustFontSize(1)" class="px-2 py-1 hover:bg-white rounded-md text-slate-600" title="เพิ่มขนาดตัวอักษร">A+</button>
+        </div>
+
+        <button onclick="loadAllData(true)" class="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition" title="รีเฟรชข้อมูล">
+          <i data-lucide="refresh-cw" id="refreshIcon" class="w-5 h-5"></i>
+        </button>
+
+        <button onclick="switchTab('inspections')" class="relative p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition" title="รายการพบข้อบกพร่อง">
+          <i data-lucide="bell" class="w-5 h-5"></i>
+          <span id="defectBadge" class="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 px-1 bg-red-600 text-white text-[11px] font-bold rounded-full flex items-center justify-center">0</span>
+        </button>
+
+        <div class="flex items-center gap-2.5 pl-3 border-l border-slate-200">
+          <div class="text-right hidden sm:block">
+            <div class="text-sm font-semibold text-slate-800 leading-tight">สมศักดิ์ มั่นคง</div>
+            <div class="text-[11px] text-slate-500">Safety Supervisor</div>
+          </div>
+          <button onclick="logout()" title="ออกจากระบบ" class="w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 transition">
+            <i data-lucide="log-out" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Navigation Tabs -->
+    <div class="max-w-[1440px] mx-auto px-4 sm:px-6 flex items-center gap-2 py-2.5 border-t border-slate-100 overflow-x-auto">
+      <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-pill active">รายงานผล</button>
+      <button onclick="switchTab('assets')" id="nav-assets" class="nav-pill">ทะเบียนอุปกรณ์</button>
+      <button onclick="switchTab('inspections')" id="nav-inspections" class="nav-pill">บันทึกผลตรวจ</button>
+      <button onclick="switchTab('qr')" id="nav-qr" class="nav-pill">จัดการ QR Code & จุดตรวจ</button>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-6 no-print">
+
+    <!-- TAB 1: DASHBOARD -->
+    <section id="tab-dashboard" class="tab-section space-y-6">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="inline-flex bg-white p-1 rounded-xl border border-slate-200 shadow-xs">
+          <button onclick="switchDashboardSub('overview')" id="sub-overview" class="px-4 py-1.5 rounded-lg text-sm font-semibold bg-indigo-600 text-white transition">ภาพรวมตรวจปัจจุบัน</button>
+          <button onclick="switchDashboardSub('annual')" id="sub-annual" class="px-4 py-1.5 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition">สถิติและการชำรุดประจำปี</button>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="exportExcel('assets')" class="btn-outline"><i data-lucide="download" class="w-4 h-4"></i> ส่งออกรายงาน (Excel)</button>
+          <button onclick="window.print()" class="btn-primary"><i data-lucide="printer" class="w-4 h-4"></i> พิมพ์รายงาน PDF</button>
+        </div>
+      </div>
+
+      <!-- SUB-TAB 1A: Overview -->
+      <div id="dash-overview" class="space-y-6">
+        <div>
+          <div class="flex items-center gap-2 text-xs text-slate-600 mb-1">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span class="font-semibold">รอบการตรวจประจำเดือนปัจจุบัน</span>
+            <span class="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full font-semibold">ซิงค์สด Google Sheets</span>
+          </div>
+          <h2 class="text-2xl font-bold text-slate-900">ภาพรวมรายงานและผลการตรวจสอบอุปกรณ์ความปลอดภัย</h2>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="overviewKpiCards"></div>
+
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="text-xs font-semibold text-slate-500 block mb-1">ประเภทอุปกรณ์</label>
+            <select id="ovFilterType" onchange="renderOverview()" class="input-select">
+              <option value="ALL">ทั้งหมดทุกประเภท</option>
+              <option value="ถังดับเพลิง">ถังดับเพลิง</option>
+              <option value="ไฟฉุกเฉิน">ไฟฉุกเฉิน</option>
+              <option value="ป้ายไฟทางออก">ป้ายไฟทางออก</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-slate-500 block mb-1">สถานะผลตรวจ</label>
+            <select id="ovFilterStatus" onchange="renderOverview()" class="input-select">
+              <option value="ALL">สถานะทั้งหมด</option>
+              <option value="ปกติ">ปกติ</option>
+              <option value="พบข้อบกพร่อง">พบข้อบกพร่อง</option>
+              <option value="ยังไม่ตรวจ">ยังไม่ตรวจ</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-slate-500 block mb-1">ค้นหา</label>
+            <input type="text" id="ovFilterText" oninput="renderOverview()" placeholder="ค้นหารหัส / สถานที่..." class="input-text">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 space-y-6">
+            <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+              <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                <h3 class="font-bold text-slate-800 flex items-center gap-2"><i data-lucide="list-checks" class="w-5 h-5 text-indigo-600"></i> ตารางรายการผลการตรวจสอบ</h3>
+                <span id="ovTableCount" class="text-xs text-slate-500"></span>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left">
+                  <thead class="bg-slate-50 text-slate-500 text-xs">
+                    <tr>
+                      <th class="px-4 py-3">รหัสอุปกรณ์</th>
+                      <th class="px-4 py-3">ประเภท</th>
+                      <th class="px-4 py-3">สถานที่ติดตั้ง</th>
+                      <th class="px-4 py-3">วันที่ตรวจล่าสุด</th>
+                      <th class="px-4 py-3">ผู้ตรวจ</th>
+                      <th class="px-4 py-3">ผลตรวจ</th>
+                      <th class="px-4 py-3 text-right">จัดการ</th>
+                    </tr>
+                  </thead>
+                  <tbody id="ovTableBody" class="divide-y divide-slate-100"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="font-bold text-slate-800">ความคืบหน้าการตรวจสอบทั้งหมด</h3>
+                <span id="ovProgressText" class="text-sm font-bold text-indigo-600"></span>
+              </div>
+              <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden flex" id="ovProgressBar"></div>
+              <div class="flex flex-wrap gap-6 mt-3 text-xs text-slate-600" id="ovProgressLegend"></div>
+            </div>
+          </div>
+
+          <div class="space-y-6">
+            <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                  <span class="w-7 h-7 rounded-lg bg-red-600 text-white flex items-center justify-center"><i data-lucide="alert-triangle" class="w-4 h-4"></i></span>
+                  รายการชำรุดที่ต้องแก้ไขด่วน
+                </h3>
+                <span id="urgentCountBadge" class="px-2.5 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded-full">0 รายการ</span>
+              </div>
+              <div id="urgentDefectsList" class="space-y-3"></div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs">
+              <h3 class="font-bold text-slate-800 mb-4">สถิติตามอาคาร / จุดตรวจ</h3>
+              <div id="buildingStatsList" class="space-y-4"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-TAB 1B: Annual Analytics -->
+      <div id="dash-annual" class="hidden space-y-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="annualKpiCards"></div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs">
+            <h3 class="font-bold text-slate-800 mb-1">แนวโน้มการชำรุดรายเดือน (Monthly Defect Trends)</h3>
+            <p class="text-xs text-slate-500 mb-4">สถิติการแจ้งซ่อมประจำปี</p>
+            <div class="h-64"><canvas id="monthlyTrendChart"></canvas></div>
+          </div>
+          <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs">
+            <h3 class="font-bold text-slate-800 mb-1">สัดส่วนตามประเภทอุปกรณ์</h3>
+            <p class="text-xs text-slate-500 mb-4">Asset-Specific Distribution</p>
+            <div class="h-64 flex items-center justify-center"><canvas id="assetDonutChart"></canvas></div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <h3 class="font-bold text-slate-800">บันทึกงานซ่อมและเปลี่ยนอะไหล่สะสมประจำปี</h3>
+              <p class="text-xs text-slate-500">Top Annual Maintenance Logs & Work Orders</p>
+            </div>
+            <button onclick="openWorkOrderModal()" class="btn-primary text-xs"><i data-lucide="plus" class="w-4 h-4"></i> เปิดใบแจ้งซ่อม (WO)</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+              <thead class="bg-slate-50 text-slate-500 text-xs">
+                <tr>
+                  <th class="px-4 py-3">รหัสใบงาน</th>
+                  <th class="px-4 py-3">วันที่แจ้ง</th>
+                  <th class="px-4 py-3">รหัสอุปกรณ์</th>
+                  <th class="px-4 py-3">อาการชำรุด</th>
+                  <th class="px-4 py-3">การดำเนินการ / อะไหล่</th>
+                  <th class="px-4 py-3">ผู้รับผิดชอบ/ช่าง</th>
+                  <th class="px-4 py-3">ค่าใช้จ่าย</th>
+                  <th class="px-4 py-3">สถานะ</th>
+                </tr>
+              </thead>
+              <tbody id="woTableBody" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: EQUIPMENT MASTER REGISTRY -->
+    <section id="tab-assets" class="tab-section hidden space-y-6">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div class="text-xs font-semibold text-indigo-600 mb-1">EQUIPMENT MASTER REGISTRY • ฐานข้อมูลซิงค์สด LIFF</div>
+          <h2 class="text-2xl font-bold text-slate-900">ทะเบียนอุปกรณ์ความปลอดภัย & คิวอาร์โค้ด</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="exportExcel('assets')" class="btn-outline"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i> ส่งออก Excel ทะเบียน มอก.</button>
+          <button onclick="openAssetModal()" class="btn-primary"><i data-lucide="plus-circle" class="w-4 h-4"></i> ลงทะเบียนอุปกรณ์ใหม่</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="assetKpiCards"></div>
+
+      <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+        <div class="p-4 border-b border-slate-100 flex flex-wrap gap-3 items-center justify-between">
+          <input type="text" id="assetSearch" oninput="renderAssets()" placeholder="ค้นหารหัส (เช่น FE-001), สเปก, พิกัดตรวจ..." class="input-text max-w-sm">
+          <div class="flex flex-wrap gap-2" id="assetCategoryPills"></div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm text-left">
+            <thead class="bg-slate-50 text-slate-500 text-xs">
+              <tr>
+                <th class="px-4 py-3">รหัสอุปกรณ์</th>
+                <th class="px-4 py-3">ชื่อรุ่น / สเปกอุปกรณ์</th>
+                <th class="px-4 py-3">ประเภท</th>
+                <th class="px-4 py-3">พิกัดติดตั้ง</th>
+                <th class="px-4 py-3">รอบบำรุง / หมดอายุ</th>
+                <th class="px-4 py-3">สถานะล่าสุด</th>
+                <th class="px-4 py-3 text-right">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="assetTableBody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: INSPECTION LOG & AUDIT TRAIL -->
+    <section id="tab-inspections" class="tab-section hidden space-y-6">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div class="text-xs font-semibold text-indigo-600 mb-1">LOG & AUDIT TRAIL / รอบตรวจประจำเดือน</div>
+          <h2 class="text-2xl font-bold text-slate-900">บันทึกผลตรวจอุปกรณ์ความปลอดภัย</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="exportExcel('inspections')" class="btn-outline"><i data-lucide="download" class="w-4 h-4"></i> ส่งออก Excel</button>
+          <button onclick="openApprovalModal()" class="btn-primary"><i data-lucide="badge-check" class="w-4 h-4"></i> รับรองผลรอบเดือน (จป. วิชาชีพ)</button>
+        </div>
+      </div>
+
+      <div id="inspectionCardsContainer" class="space-y-5"></div>
+
+      <div class="bg-indigo-50/70 border border-indigo-200 rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-xl bg-white text-indigo-600 shadow-xs flex items-center justify-center shrink-0">
+            <i data-lucide="shield-check" class="w-7 h-7"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="font-bold text-slate-900">การรับรองผลโดย เจ้าหน้าที่ความปลอดภัยในการทำงาน (จป. วิชาชีพ)</h3>
+              <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-full">ใบอนุญาตเลขที่ จป.ว-55941</span>
+            </div>
+            <p id="approvalStatusText" class="text-xs text-slate-600 mt-1">รับรองตามกฎกระทรวงกำหนดมาตรฐานในการบริหาร จัดการ และดำเนินการด้านความปลอดภัยฯ พ.ศ. 2555</p>
+          </div>
+        </div>
+        <button onclick="openApprovalModal()" class="btn-primary"><i data-lucide="pen-tool" class="w-4 h-4"></i> ลงนามอนุมัติผลตรวจ สป.1</button>
+      </div>
+    </section>
+
+    <!-- TAB 4: QR CODE & CHECKPOINT MANAGER -->
+    <section id="tab-qr" class="tab-section hidden space-y-6">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <button onclick="openCheckpointModal()" class="btn-primary"><i data-lucide="map-pin-plus" class="w-4 h-4"></i> สร้างจุดตรวจใหม่</button>
+          <button onclick="printSelectedStickers()" class="btn-outline"><i data-lucide="printer" class="w-4 h-4"></i> พิมพ์สติ๊กเกอร์ที่เลือก (<span id="selectedQrCount">0</span>)</button>
+        </div>
+        <div class="px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl text-xs font-semibold flex items-center gap-2">
+          <i data-lucide="radar" class="w-4 h-4"></i> Smart Single QR • สแกนดูประวัติได้ทุกคน / จป. กดตรวจผ่าน LIFF
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+              <thead class="bg-slate-50 text-slate-500 text-xs">
+                <tr>
+                  <th class="px-4 py-3 w-10"><input type="checkbox" id="checkAllQr" onchange="toggleAllQr(this.checked)"></th>
+                  <th class="px-4 py-3">รหัสจุดตรวจ</th>
+                  <th class="px-4 py-3">อุปกรณ์ที่ผูก</th>
+                  <th class="px-4 py-3">พิกัด & GPS Geofence</th>
+                  <th class="px-4 py-3">สถานะสติ๊กเกอร์</th>
+                  <th class="px-4 py-3 text-right">พรีวิว</th>
+                </tr>
+              </thead>
+              <tbody id="checkpointTableBody" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-4 h-fit">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-slate-800 flex items-center gap-2"><i data-lucide="tag" class="w-4 h-4 text-indigo-600"></i> พรีวิวฉลากสติ๊กเกอร์</h3>
+            <span class="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs font-semibold rounded-md">80 × 55 มม.</span>
+          </div>
+
+          <div id="liveStickerPreview" class="border-2 border-indigo-200 rounded-2xl p-4 bg-white shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+              <div class="flex items-center gap-2">
+                <span class="w-6 h-6 rounded-md bg-indigo-600 text-white text-xs font-bold flex items-center justify-center">จป</span>
+                <span class="font-bold text-xs text-slate-800">Safety Inspection System</span>
+              </div>
+              <span class="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-700 font-semibold rounded-full">มอก./OSHA</span>
+            </div>
+            <div class="flex items-center gap-4">
+              <div id="previewQrBox" class="w-24 h-24 shrink-0 border border-slate-200 rounded-lg p-1 flex items-center justify-center bg-white"></div>
+              <div class="text-xs space-y-1">
+                <div class="text-[10px] text-slate-400 font-semibold">CHECKPOINT ID</div>
+                <div id="prevCpId" class="text-lg font-bold text-indigo-700 leading-none">CP-WH-01</div>
+                <div class="font-semibold text-slate-800 pt-1">อุปกรณ์: <span id="prevAssetId">FE-002</span></div>
+                <div id="prevAssetName" class="text-slate-600 text-[11px]">ถังดับเพลิงเคมีแห้ง 15 lbs</div>
+                <div id="prevLocation" class="text-slate-500 text-[10px]">เสา C4 ชั้น 1 ข้างลิฟต์ขนของ</div>
+              </div>
+            </div>
+            <div class="mt-3 pt-2 border-t border-slate-100 flex justify-between text-[10px] text-slate-400">
+              <span>สแกนด้วยกล้องมือถือเพื่อดูประวัติ / ตรวจเช็ค</span>
+              <span id="prevGps">GPS ±15 ม.</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <label class="border rounded-xl p-3 cursor-pointer flex items-center gap-2 has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50/50">
+              <input type="radio" name="printMode" value="thermal" checked>
+              <div><div class="font-bold">Thermal</div><div class="text-[10px] text-slate-500">ฉลากม้วน 80×55</div></div>
+            </label>
+            <label class="border rounded-xl p-3 cursor-pointer flex items-center gap-2 has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50/50">
+              <input type="radio" name="printMode" value="a4">
+              <div><div class="font-bold">A4 Layout</div><div class="text-[10px] text-slate-500">8 ป้าย/แผ่น</div></div>
+            </label>
+          </div>
+
+          <button onclick="printSelectedStickers()" class="btn-primary w-full justify-center py-2.5">
+            <i data-lucide="printer" class="w-4 h-4"></i> สั่งพิมพ์ฉลากสติ๊กเกอร์ทันที
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Slide-Over Drawer: Asset History -->
+  <div id="historyDrawer" class="fixed inset-0 z-40 hidden no-print">
+    <div onclick="closeHistoryDrawer()" class="absolute inset-0 bg-slate-900/40 backdrop-blur-[1px]"></div>
+    <div class="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl flex flex-col">
+      <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+        <h3 class="font-bold text-slate-900 flex items-center gap-2"><i data-lucide="clipboard-list" class="w-5 h-5 text-indigo-600"></i> ประวัติอุปกรณ์ & การบำรุงรักษา</h3>
+        <button onclick="closeHistoryDrawer()" class="p-1.5 hover:bg-slate-100 rounded-lg"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <div id="drawerContent" class="flex-1 overflow-y-auto p-6 space-y-5"></div>
+      <div class="p-4 border-t border-slate-200 flex justify-between gap-3 bg-slate-50">
+        <button onclick="closeHistoryDrawer()" class="btn-outline">ปิดหน้าต่าง</button>
+        <button onclick="window.print()" class="btn-primary"><i data-lucide="printer" class="w-4 h-4"></i> พิมพ์ประวัติ มอก.</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generic Modal -->
+  <div id="appModal" class="fixed inset-0 z-50 hidden bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 no-print">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+        <h3 id="modalTitle" class="font-bold text-slate-900 text-lg"></h3>
+        <button onclick="closeModal()" class="p-1 hover:bg-slate-100 rounded-lg"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <form id="modalForm" class="p-6 space-y-4 max-h-[75vh] overflow-y-auto"></form>
+    </div>
+  </div>
+
+  <!-- Print Area -->
+  <div id="printStickerArea" class="hidden print-only"></div>
+
+  <footer class="bg-white border-t border-slate-200 py-4 px-6 text-xs text-slate-500 no-print">
+    <div class="max-w-[1440px] mx-auto flex flex-wrap items-center justify-between gap-2">
+      <span>© 2026 ระบบตรวจสอบอุปกรณ์ความปลอดภัยและอาชีวอนามัย (Occupational Safety Inspection System)</span>
+      <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Google Sheets + Drive Sync • มาตรฐาน มอก./OSHA Compliance</span>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
